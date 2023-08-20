@@ -54,6 +54,7 @@
 struct ImGui_ImplDX12_Texture {
     bool allocated;
     ImTextureID TextureId;
+    ID3D12Resource* pTextureResource;
     D3D12_CPU_DESCRIPTOR_HANDLE hCpuDescHandle;
     D3D12_GPU_DESCRIPTOR_HANDLE hGpuDescHandle;
 };
@@ -65,9 +66,7 @@ struct ImGui_ImplDX12_Data
     ID3D12RootSignature*        pRootSignature;
     ID3D12PipelineState*        pPipelineState;
     DXGI_FORMAT                 RTVFormat;
-    ID3D12Resource*             pFontTextureResource;
-    //D3D12_CPU_DESCRIPTOR_HANDLE hFontSrvCpuDescHandle;
-    //D3D12_GPU_DESCRIPTOR_HANDLE hFontSrvGpuDescHandle;
+    //ID3D12Resource*             pFontTextureResource;
     ID3D12DescriptorHeap*       pd3dSrvDescHeap;
     UINT                        srvDescHeapSize;
     UINT                        numFramesInFlight;
@@ -79,11 +78,37 @@ struct ImGui_ImplDX12_Data
     ImGui_ImplDX12_Texture managedTextures[16];
 
     ImGui_ImplDX12_Data()       { memset((void*)this, 0, sizeof(*this)); frameIndex = UINT_MAX; }
+
     ImTextureID GetManagedTexture(ImManagedTextureID id) {
         IM_ASSERT(id.Internal < 16);
         auto& managedTexture = managedTextures[id.Internal];
         IM_ASSERT(managedTexture.allocated == true);
         return managedTexture.TextureId;
+    }
+
+    ImGui_ImplDX12_Texture& AllocateTexture(ImManagedTextureID id) {
+        IM_ASSERT(id.Internal < 16);
+        auto& managedTexture = managedTextures[id.Internal];
+        IM_ASSERT(managedTexture.allocated == false);
+        UINT descriptorSize = pd3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+        managedTexture.hCpuDescHandle = pd3dSrvDescHeap->GetCPUDescriptorHandleForHeapStart();
+        managedTexture.hCpuDescHandle.ptr += descriptorSize * id.Internal;
+        managedTexture.hGpuDescHandle = pd3dSrvDescHeap->GetGPUDescriptorHandleForHeapStart();
+        managedTexture.hGpuDescHandle.ptr += descriptorSize * id.Internal;
+        managedTexture.allocated = true;
+
+        return managedTexture;
+    }
+
+    void FreeTexture(ImManagedTextureID id) {
+        IM_ASSERT(id.Internal < 16);
+        auto& managedTexture = managedTextures[id.Internal];
+        if (managedTexture.allocated == true) {
+            if (managedTexture.pTextureResource)
+                managedTexture.pTextureResource->Release();
+            managedTexture.pTextureResource = nullptr;
+        }
+
     }
 };
 
@@ -301,7 +326,7 @@ void ImGui_ImplDX12_RenderDrawData(ImDrawData* draw_data, ID3D12GraphicsCommandL
     }
 }
 
-static void ImGui_ImplDX12_CreateTexture(int width, int height, unsigned char* pixels, D3D12_CPU_DESCRIPTOR_HANDLE cpu_descriptor_handle)
+static void ImGui_ImplDX12_CreateTexture(int width, int height, unsigned char* pixels, ID3D12Resource** ppResource, D3D12_CPU_DESCRIPTOR_HANDLE cpu_descriptor_handle)
 {
     ImGui_ImplDX12_Data* bd = ImGui_ImplDX12_GetBackendData();
 
@@ -435,8 +460,8 @@ static void ImGui_ImplDX12_CreateTexture(int width, int height, unsigned char* p
     srvDesc.Texture2D.MostDetailedMip = 0;
     srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
     bd->pd3dDevice->CreateShaderResourceView(pTexture, &srvDesc, cpu_descriptor_handle);
-    SafeRelease(bd->pFontTextureResource);
-    bd->pFontTextureResource = pTexture;
+    SafeRelease(*ppResource);
+    *ppResource = pTexture;
 }
 
 static void ImGui_ImplDX12_CreateFontsTexture()
@@ -448,11 +473,9 @@ static void ImGui_ImplDX12_CreateFontsTexture()
     int width, height;
     io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
 
-    D3D12_CPU_DESCRIPTOR_HANDLE cpu_descriptor_handle = bd->pd3dSrvDescHeap->GetCPUDescriptorHandleForHeapStart();
-    D3D12_GPU_DESCRIPTOR_HANDLE gpu_descriptor_handle = bd->pd3dSrvDescHeap->GetGPUDescriptorHandleForHeapStart();
-
     // Upload texture to graphics system
-    ImGui_ImplDX12_CreateTexture(width, height, pixels, cpu_descriptor_handle);
+    ImGui_ImplDX12_Texture& texture = bd->AllocateTexture({0});
+    ImGui_ImplDX12_CreateTexture(width, height, pixels, &texture.pTextureResource, texture.hCpuDescHandle);
 
 
     // Store our identifier
@@ -463,9 +486,9 @@ static void ImGui_ImplDX12_CreateFontsTexture()
     // [Solution 2] IDE/msbuild: in "Properties/C++/Preprocessor Definitions" add 'IMGUI_USER_CONFIG="my_imgui_config.h"' and inside 'my_imgui_config.h' add '#define ImTextureID ImU64' and as many other options as you like.
     // [Solution 3] IDE/msbuild: edit imconfig.h and add '#define ImTextureID ImU64' (prefer solution 2 to create your own config file!)
     // [Solution 4] command-line: add '/D ImTextureID=ImU64' to your cl.exe command-line (this is what we do in the example_win32_direct12/build_win32.bat file)
-    static_assert(sizeof(ImTextureID) >= sizeof(gpu_descriptor_handle.ptr), "Can't pack descriptor handle into TexID, 32-bit not supported yet.");
+    static_assert(sizeof(ImTextureID) >= sizeof(texture.hGpuDescHandle.ptr), "Can't pack descriptor handle into TexID, 32-bit not supported yet.");
 
-    io.Fonts->SetTexID((ImTextureID) gpu_descriptor_handle.ptr);
+    io.Fonts->SetTexID((ImTextureID) texture.hGpuDescHandle.ptr);
 }
 
 bool    ImGui_ImplDX12_CreateDeviceObjects()
@@ -711,7 +734,7 @@ void    ImGui_ImplDX12_InvalidateDeviceObjects()
     ImGuiIO& io = ImGui::GetIO();
     SafeRelease(bd->pRootSignature);
     SafeRelease(bd->pPipelineState);
-    SafeRelease(bd->pFontTextureResource);
+    bd->FreeTexture({ 0 });
     io.Fonts->SetTexID(0); // We copied bd->pFontTextureView to io.Fonts->TexID so let's clear that as well.
 
     for (UINT i = 0; i < bd->numFramesInFlight; i++)
