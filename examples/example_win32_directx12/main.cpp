@@ -37,6 +37,7 @@ static int const                    NUM_BACK_BUFFERS = 3;
 static ID3D12Device*                g_pd3dDevice = nullptr;
 static ID3D12DescriptorHeap*        g_pd3dRtvDescHeap = nullptr;
 static ID3D12DescriptorHeap*        g_pd3dSrvDescHeap = nullptr;
+static int const                    SRV_HEAP_SIZE = 16;
 static ID3D12CommandQueue*          g_pd3dCommandQueue = nullptr;
 static ID3D12GraphicsCommandList*   g_pd3dCommandList = nullptr;
 static ID3D12Fence*                 g_fence = nullptr;
@@ -91,9 +92,7 @@ int main(int, char**)
     // Setup Platform/Renderer backends
     ImGui_ImplWin32_Init(hwnd);
     ImGui_ImplDX12_Init(g_pd3dDevice, NUM_FRAMES_IN_FLIGHT,
-        DXGI_FORMAT_R8G8B8A8_UNORM, g_pd3dSrvDescHeap,
-        g_pd3dSrvDescHeap->GetCPUDescriptorHandleForHeapStart(),
-        g_pd3dSrvDescHeap->GetGPUDescriptorHandleForHeapStart());
+        DXGI_FORMAT_R8G8B8A8_UNORM, g_pd3dSrvDescHeap, SRV_HEAP_SIZE);
 
     // Load Fonts
     // - If no fonts are loaded, dear imgui will use the default font. You can also load multiple fonts and use ImGui::PushFont()/PopFont() to select them.
