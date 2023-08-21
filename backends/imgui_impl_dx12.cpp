@@ -79,11 +79,11 @@ struct ImGui_ImplDX12_Data
 
     ImGui_ImplDX12_Data()       { memset((void*)this, 0, sizeof(*this)); frameIndex = UINT_MAX; }
 
-    ImTextureID GetManagedTexture(ImManagedTextureID id) {
+    ImGui_ImplDX12_Texture& GetManagedTexture(ImManagedTextureID id) {
         IM_ASSERT(id.Internal < 16);
         auto& managedTexture = managedTextures[id.Internal];
         IM_ASSERT(managedTexture.allocated == true);
-        return managedTexture.TextureId;
+        return managedTexture;
     }
 
     ImGui_ImplDX12_Texture& AllocateTexture(ImManagedTextureID id) {
@@ -200,132 +200,6 @@ static inline void SafeRelease(T*& res)
     res = nullptr;
 }
 
-// Render function
-void ImGui_ImplDX12_RenderDrawData(ImDrawData* draw_data, ID3D12GraphicsCommandList* ctx)
-{
-    // Avoid rendering when minimized
-    if (draw_data->DisplaySize.x <= 0.0f || draw_data->DisplaySize.y <= 0.0f)
-        return;
-
-    // FIXME: I'm assuming that this only gets called once per frame!
-    // If not, we can't just re-allocate the IB or VB, we'll have to do a proper allocator.
-    ImGui_ImplDX12_Data* bd = ImGui_ImplDX12_GetBackendData();
-    bd->frameIndex = bd->frameIndex + 1;
-    ImGui_ImplDX12_RenderBuffers* fr = &bd->pFrameResources[bd->frameIndex % bd->numFramesInFlight];
-
-    // Create and grow vertex/index buffers if needed
-    if (fr->VertexBuffer == nullptr || fr->VertexBufferSize < draw_data->TotalVtxCount)
-    {
-        SafeRelease(fr->VertexBuffer);
-        fr->VertexBufferSize = draw_data->TotalVtxCount + 5000;
-        D3D12_HEAP_PROPERTIES props;
-        memset(&props, 0, sizeof(D3D12_HEAP_PROPERTIES));
-        props.Type = D3D12_HEAP_TYPE_UPLOAD;
-        props.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
-        props.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
-        D3D12_RESOURCE_DESC desc;
-        memset(&desc, 0, sizeof(D3D12_RESOURCE_DESC));
-        desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-        desc.Width = fr->VertexBufferSize * sizeof(ImDrawVert);
-        desc.Height = 1;
-        desc.DepthOrArraySize = 1;
-        desc.MipLevels = 1;
-        desc.Format = DXGI_FORMAT_UNKNOWN;
-        desc.SampleDesc.Count = 1;
-        desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-        desc.Flags = D3D12_RESOURCE_FLAG_NONE;
-        if (bd->pd3dDevice->CreateCommittedResource(&props, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&fr->VertexBuffer)) < 0)
-            return;
-    }
-    if (fr->IndexBuffer == nullptr || fr->IndexBufferSize < draw_data->TotalIdxCount)
-    {
-        SafeRelease(fr->IndexBuffer);
-        fr->IndexBufferSize = draw_data->TotalIdxCount + 10000;
-        D3D12_HEAP_PROPERTIES props;
-        memset(&props, 0, sizeof(D3D12_HEAP_PROPERTIES));
-        props.Type = D3D12_HEAP_TYPE_UPLOAD;
-        props.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
-        props.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
-        D3D12_RESOURCE_DESC desc;
-        memset(&desc, 0, sizeof(D3D12_RESOURCE_DESC));
-        desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-        desc.Width = fr->IndexBufferSize * sizeof(ImDrawIdx);
-        desc.Height = 1;
-        desc.DepthOrArraySize = 1;
-        desc.MipLevels = 1;
-        desc.Format = DXGI_FORMAT_UNKNOWN;
-        desc.SampleDesc.Count = 1;
-        desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-        desc.Flags = D3D12_RESOURCE_FLAG_NONE;
-        if (bd->pd3dDevice->CreateCommittedResource(&props, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&fr->IndexBuffer)) < 0)
-            return;
-    }
-
-    // Upload vertex/index data into a single contiguous GPU buffer
-    void* vtx_resource, *idx_resource;
-    D3D12_RANGE range;
-    memset(&range, 0, sizeof(D3D12_RANGE));
-    if (fr->VertexBuffer->Map(0, &range, &vtx_resource) != S_OK)
-        return;
-    if (fr->IndexBuffer->Map(0, &range, &idx_resource) != S_OK)
-        return;
-    ImDrawVert* vtx_dst = (ImDrawVert*)vtx_resource;
-    ImDrawIdx* idx_dst = (ImDrawIdx*)idx_resource;
-    for (int n = 0; n < draw_data->CmdListsCount; n++)
-    {
-        const ImDrawList* cmd_list = draw_data->CmdLists[n];
-        memcpy(vtx_dst, cmd_list->VtxBuffer.Data, cmd_list->VtxBuffer.Size * sizeof(ImDrawVert));
-        memcpy(idx_dst, cmd_list->IdxBuffer.Data, cmd_list->IdxBuffer.Size * sizeof(ImDrawIdx));
-        vtx_dst += cmd_list->VtxBuffer.Size;
-        idx_dst += cmd_list->IdxBuffer.Size;
-    }
-    fr->VertexBuffer->Unmap(0, &range);
-    fr->IndexBuffer->Unmap(0, &range);
-
-    // Setup desired DX state
-    ImGui_ImplDX12_SetupRenderState(draw_data, ctx, fr);
-
-    // Render command lists
-    // (Because we merged all buffers into a single one, we maintain our own offset into them)
-    int global_vtx_offset = 0;
-    int global_idx_offset = 0;
-    ImVec2 clip_off = draw_data->DisplayPos;
-    for (int n = 0; n < draw_data->CmdListsCount; n++)
-    {
-        const ImDrawList* cmd_list = draw_data->CmdLists[n];
-        for (int cmd_i = 0; cmd_i < cmd_list->CmdBuffer.Size; cmd_i++)
-        {
-            const ImDrawCmd* pcmd = &cmd_list->CmdBuffer[cmd_i];
-            if (pcmd->UserCallback != nullptr)
-            {
-                // User callback, registered via ImDrawList::AddCallback()
-                // (ImDrawCallback_ResetRenderState is a special callback value used by the user to request the renderer to reset render state.)
-                if (pcmd->UserCallback == ImDrawCallback_ResetRenderState)
-                    ImGui_ImplDX12_SetupRenderState(draw_data, ctx, fr);
-                else
-                    pcmd->UserCallback(cmd_list, pcmd);
-            }
-            else
-            {
-                // Project scissor/clipping rectangles into framebuffer space
-                ImVec2 clip_min(pcmd->ClipRect.x - clip_off.x, pcmd->ClipRect.y - clip_off.y);
-                ImVec2 clip_max(pcmd->ClipRect.z - clip_off.x, pcmd->ClipRect.w - clip_off.y);
-                if (clip_max.x <= clip_min.x || clip_max.y <= clip_min.y)
-                    continue;
-
-                // Apply Scissor/clipping rectangle, Bind texture, Draw
-                const D3D12_RECT r = { (LONG)clip_min.x, (LONG)clip_min.y, (LONG)clip_max.x, (LONG)clip_max.y };
-                D3D12_GPU_DESCRIPTOR_HANDLE texture_handle = {};
-                texture_handle.ptr = pcmd->UseManagedTexture ?  bd->GetManagedTexture(pcmd->ManagedTextureId) : (UINT64)pcmd->GetTexID();
-                ctx->SetGraphicsRootDescriptorTable(1, texture_handle);
-                ctx->RSSetScissorRects(1, &r);
-                ctx->DrawIndexedInstanced(pcmd->ElemCount, 1, pcmd->IdxOffset + global_idx_offset, pcmd->VtxOffset + global_vtx_offset, 0);
-            }
-        }
-        global_idx_offset += cmd_list->IdxBuffer.Size;
-        global_vtx_offset += cmd_list->VtxBuffer.Size;
-    }
-}
 
 static void ImGui_ImplDX12_CreateTexture(int width, int height, unsigned char* pixels, ID3D12Resource** ppResource, D3D12_CPU_DESCRIPTOR_HANDLE cpu_descriptor_handle)
 {
@@ -463,6 +337,154 @@ static void ImGui_ImplDX12_CreateTexture(int width, int height, unsigned char* p
     bd->pd3dDevice->CreateShaderResourceView(pTexture, &srvDesc, cpu_descriptor_handle);
     SafeRelease(*ppResource);
     *ppResource = pTexture;
+}
+
+// Render function
+void ImGui_ImplDX12_RenderDrawData(ImDrawData* draw_data, ID3D12GraphicsCommandList* ctx)
+{
+    ImGui_ImplDX12_Data* bd = ImGui_ImplDX12_GetBackendData();
+
+    for (const auto& req : draw_data->TextureRqs) {
+        switch (req->Type) {
+        case ImTextureRequestType_Create: {
+                auto& texture = bd->AllocateTexture(req->TexID);
+                ImGui_ImplDX12_CreateTexture(req->create.width, req->create.height, req->create.pixels, &texture.pTextureResource, texture.hCpuDescHandle);
+                break;
+            }
+        case ImTextureRequestType_Update: {
+                // TODO: Implement ImGui_ImplDX12_UpdateTexture(...)
+                //auto& texture = bd->GetManagedTexture(req->TexID);
+                //ImGui_ImplDX12_UpdateTexture(req->update.x, req->update.y, req->update.width, req->update.height, req->create.pixels, texture.pTextureResource);
+                break;
+            }
+        case ImTextureRequestType_Destroy: {
+                bd->FreeTexture(req->TexID);
+                break;
+            }
+        }
+    }
+
+    // Avoid rendering when minimized
+    if (draw_data->DisplaySize.x <= 0.0f || draw_data->DisplaySize.y <= 0.0f)
+        return;
+
+    // FIXME: I'm assuming that this only gets called once per frame!
+    // If not, we can't just re-allocate the IB or VB, we'll have to do a proper allocator.
+    bd->frameIndex = bd->frameIndex + 1;
+    ImGui_ImplDX12_RenderBuffers* fr = &bd->pFrameResources[bd->frameIndex % bd->numFramesInFlight];
+
+    // Create and grow vertex/index buffers if needed
+    if (fr->VertexBuffer == nullptr || fr->VertexBufferSize < draw_data->TotalVtxCount)
+    {
+        SafeRelease(fr->VertexBuffer);
+        fr->VertexBufferSize = draw_data->TotalVtxCount + 5000;
+        D3D12_HEAP_PROPERTIES props;
+        memset(&props, 0, sizeof(D3D12_HEAP_PROPERTIES));
+        props.Type = D3D12_HEAP_TYPE_UPLOAD;
+        props.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+        props.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+        D3D12_RESOURCE_DESC desc;
+        memset(&desc, 0, sizeof(D3D12_RESOURCE_DESC));
+        desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+        desc.Width = fr->VertexBufferSize * sizeof(ImDrawVert);
+        desc.Height = 1;
+        desc.DepthOrArraySize = 1;
+        desc.MipLevels = 1;
+        desc.Format = DXGI_FORMAT_UNKNOWN;
+        desc.SampleDesc.Count = 1;
+        desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+        desc.Flags = D3D12_RESOURCE_FLAG_NONE;
+        if (bd->pd3dDevice->CreateCommittedResource(&props, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&fr->VertexBuffer)) < 0)
+            return;
+    }
+    if (fr->IndexBuffer == nullptr || fr->IndexBufferSize < draw_data->TotalIdxCount)
+    {
+        SafeRelease(fr->IndexBuffer);
+        fr->IndexBufferSize = draw_data->TotalIdxCount + 10000;
+        D3D12_HEAP_PROPERTIES props;
+        memset(&props, 0, sizeof(D3D12_HEAP_PROPERTIES));
+        props.Type = D3D12_HEAP_TYPE_UPLOAD;
+        props.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+        props.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+        D3D12_RESOURCE_DESC desc;
+        memset(&desc, 0, sizeof(D3D12_RESOURCE_DESC));
+        desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+        desc.Width = fr->IndexBufferSize * sizeof(ImDrawIdx);
+        desc.Height = 1;
+        desc.DepthOrArraySize = 1;
+        desc.MipLevels = 1;
+        desc.Format = DXGI_FORMAT_UNKNOWN;
+        desc.SampleDesc.Count = 1;
+        desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+        desc.Flags = D3D12_RESOURCE_FLAG_NONE;
+        if (bd->pd3dDevice->CreateCommittedResource(&props, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&fr->IndexBuffer)) < 0)
+            return;
+    }
+
+    // Upload vertex/index data into a single contiguous GPU buffer
+    void* vtx_resource, *idx_resource;
+    D3D12_RANGE range;
+    memset(&range, 0, sizeof(D3D12_RANGE));
+    if (fr->VertexBuffer->Map(0, &range, &vtx_resource) != S_OK)
+        return;
+    if (fr->IndexBuffer->Map(0, &range, &idx_resource) != S_OK)
+        return;
+    ImDrawVert* vtx_dst = (ImDrawVert*)vtx_resource;
+    ImDrawIdx* idx_dst = (ImDrawIdx*)idx_resource;
+    for (int n = 0; n < draw_data->CmdListsCount; n++)
+    {
+        const ImDrawList* cmd_list = draw_data->CmdLists[n];
+        memcpy(vtx_dst, cmd_list->VtxBuffer.Data, cmd_list->VtxBuffer.Size * sizeof(ImDrawVert));
+        memcpy(idx_dst, cmd_list->IdxBuffer.Data, cmd_list->IdxBuffer.Size * sizeof(ImDrawIdx));
+        vtx_dst += cmd_list->VtxBuffer.Size;
+        idx_dst += cmd_list->IdxBuffer.Size;
+    }
+    fr->VertexBuffer->Unmap(0, &range);
+    fr->IndexBuffer->Unmap(0, &range);
+
+    // Setup desired DX state
+    ImGui_ImplDX12_SetupRenderState(draw_data, ctx, fr);
+
+    // Render command lists
+    // (Because we merged all buffers into a single one, we maintain our own offset into them)
+    int global_vtx_offset = 0;
+    int global_idx_offset = 0;
+    ImVec2 clip_off = draw_data->DisplayPos;
+    for (int n = 0; n < draw_data->CmdListsCount; n++)
+    {
+        const ImDrawList* cmd_list = draw_data->CmdLists[n];
+        for (int cmd_i = 0; cmd_i < cmd_list->CmdBuffer.Size; cmd_i++)
+        {
+            const ImDrawCmd* pcmd = &cmd_list->CmdBuffer[cmd_i];
+            if (pcmd->UserCallback != nullptr)
+            {
+                // User callback, registered via ImDrawList::AddCallback()
+                // (ImDrawCallback_ResetRenderState is a special callback value used by the user to request the renderer to reset render state.)
+                if (pcmd->UserCallback == ImDrawCallback_ResetRenderState)
+                    ImGui_ImplDX12_SetupRenderState(draw_data, ctx, fr);
+                else
+                    pcmd->UserCallback(cmd_list, pcmd);
+            }
+            else
+            {
+                // Project scissor/clipping rectangles into framebuffer space
+                ImVec2 clip_min(pcmd->ClipRect.x - clip_off.x, pcmd->ClipRect.y - clip_off.y);
+                ImVec2 clip_max(pcmd->ClipRect.z - clip_off.x, pcmd->ClipRect.w - clip_off.y);
+                if (clip_max.x <= clip_min.x || clip_max.y <= clip_min.y)
+                    continue;
+
+                // Apply Scissor/clipping rectangle, Bind texture, Draw
+                const D3D12_RECT r = { (LONG)clip_min.x, (LONG)clip_min.y, (LONG)clip_max.x, (LONG)clip_max.y };
+                D3D12_GPU_DESCRIPTOR_HANDLE texture_handle = {};
+                texture_handle.ptr = pcmd->UseManagedTexture ?  bd->GetManagedTexture(pcmd->ManagedTextureId).TextureId : (UINT64)pcmd->GetTexID();
+                ctx->SetGraphicsRootDescriptorTable(1, texture_handle);
+                ctx->RSSetScissorRects(1, &r);
+                ctx->DrawIndexedInstanced(pcmd->ElemCount, 1, pcmd->IdxOffset + global_idx_offset, pcmd->VtxOffset + global_vtx_offset, 0);
+            }
+        }
+        global_idx_offset += cmd_list->IdxBuffer.Size;
+        global_vtx_offset += cmd_list->VtxBuffer.Size;
+    }
 }
 
 static void ImGui_ImplDX12_CreateFontsTexture()
@@ -789,11 +811,12 @@ void ImGui_ImplDX12_Shutdown()
     io.BackendRendererName = nullptr;
     io.BackendRendererUserData = nullptr;
     io.BackendFlags &= ~ImGuiBackendFlags_RendererHasVtxOffset;
-    IM_DELETE(bd);
 
     for (int i = 0; i < IM_MANAGED_TEXTURE_MAX_COUNT; i++) {
         IM_ASSERT(!bd->managedTextures[i].allocated);
     }
+
+    IM_DELETE(bd);
 }
 
 void ImGui_ImplDX12_NewFrame()

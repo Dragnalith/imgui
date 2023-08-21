@@ -2755,8 +2755,30 @@ struct ImDrawList
     IMGUI_API void  _PathArcToN(const ImVec2& center, float radius, float a_min, float a_max, int num_segments);
 };
 
-struct ImTextureRequest {
+enum ImTextureRequestType
+{
+    ImTextureRequestType_Create = 0,
+    ImTextureRequestType_Destroy = 1,
+    ImTextureRequestType_Update = 2
+};
 
+struct ImTextureRequest {
+    ImTextureRequestType Type;
+    ImManagedTextureID TexID;
+    union {
+        struct {
+            int width;
+            int height;
+            unsigned char* pixels;
+        } create;
+        struct {
+            int x;
+            int y;
+            int width;
+            int height;
+            unsigned char* pixels;
+        } update;
+    };
 };
 
 // All draw data to render a Dear ImGui frame
