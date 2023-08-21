@@ -37,7 +37,6 @@ static int const                    NUM_BACK_BUFFERS = 3;
 static ID3D12Device*                g_pd3dDevice = nullptr;
 static ID3D12DescriptorHeap*        g_pd3dRtvDescHeap = nullptr;
 static ID3D12DescriptorHeap*        g_pd3dSrvDescHeap = nullptr;
-static int const                    SRV_HEAP_SIZE = 16;
 static ID3D12CommandQueue*          g_pd3dCommandQueue = nullptr;
 static ID3D12GraphicsCommandList*   g_pd3dCommandList = nullptr;
 static ID3D12Fence*                 g_fence = nullptr;
@@ -91,8 +90,7 @@ int main(int, char**)
 
     // Setup Platform/Renderer backends
     ImGui_ImplWin32_Init(hwnd);
-    ImGui_ImplDX12_Init(g_pd3dDevice, NUM_FRAMES_IN_FLIGHT,
-        DXGI_FORMAT_R8G8B8A8_UNORM, g_pd3dSrvDescHeap, SRV_HEAP_SIZE);
+    ImGui_ImplDX12_Init(g_pd3dDevice, NUM_FRAMES_IN_FLIGHT, DXGI_FORMAT_R8G8B8A8_UNORM, g_pd3dSrvDescHeap);
 
     // Load Fonts
     // - If no fonts are loaded, dear imgui will use the default font. You can also load multiple fonts and use ImGui::PushFont()/PopFont() to select them.
@@ -296,7 +294,7 @@ bool CreateDeviceD3D(HWND hWnd)
     {
         D3D12_DESCRIPTOR_HEAP_DESC desc = {};
         desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-        desc.NumDescriptors = 1;
+        desc.NumDescriptors = IM_MANAGED_TEXTURE_MAX_COUNT;
         desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
         if (g_pd3dDevice->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&g_pd3dSrvDescHeap)) != S_OK)
             return false;

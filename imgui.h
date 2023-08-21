@@ -131,6 +131,10 @@ Index of this file:
 #pragma GCC diagnostic ignored "-Wclass-memaccess"  // [__GNUC__ >= 8] warning: 'memset/memcpy' clearing/writing an object of type 'xxxx' with no trivial copy-assignment; use assignment or value-initialization instead
 #endif
 
+#ifndef IM_MANAGED_TEXTURE_MAX_COUNT
+#define IM_MANAGED_TEXTURE_MAX_COUNT 16
+#endif
+
 //-----------------------------------------------------------------------------
 // [SECTION] Forward declarations and basic types
 //-----------------------------------------------------------------------------
@@ -2751,6 +2755,10 @@ struct ImDrawList
     IMGUI_API void  _PathArcToN(const ImVec2& center, float radius, float a_min, float a_max, int num_segments);
 };
 
+struct ImTextureRequest {
+
+};
+
 // All draw data to render a Dear ImGui frame
 // (NB: the style and the naming convention here is a little inconsistent, we currently preserve them for backward compatibility purpose,
 // as this is one of the oldest structure exposed by the library! Basically, ImDrawList == CmdList)
@@ -2765,6 +2773,7 @@ struct ImDrawData
     ImVec2              DisplaySize;        // Size of the viewport to render (== GetMainViewport()->Size for the main viewport, == io.DisplaySize in most single-viewport applications)
     ImVec2              FramebufferScale;   // Amount of pixels for each unit of DisplaySize. Based on io.DisplayFramebufferScale. Generally (1,1) on normal display, (2,2) on OSX with Retina display.
     ImGuiViewport*      OwnerViewport;      // Viewport carrying the ImDrawData instance, might be of use to the renderer (generally not).
+    ImVector<ImTextureRequest*> TextureRqs;
 
     // Functions
     ImDrawData()    { Clear(); }

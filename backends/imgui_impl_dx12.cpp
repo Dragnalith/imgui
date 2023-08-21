@@ -75,7 +75,7 @@ struct ImGui_ImplDX12_Data
     UINT                        frameIndex;
 
     // FIXME: Design a better data structure to managed texture
-    ImGui_ImplDX12_Texture managedTextures[16];
+    ImGui_ImplDX12_Texture managedTextures[IM_MANAGED_TEXTURE_MAX_COUNT];
 
     ImGui_ImplDX12_Data()       { memset((void*)this, 0, sizeof(*this)); frameIndex = UINT_MAX; }
 
@@ -87,7 +87,7 @@ struct ImGui_ImplDX12_Data
     }
 
     ImGui_ImplDX12_Texture& AllocateTexture(ImManagedTextureID id) {
-        IM_ASSERT(id.Internal < 16);
+        IM_ASSERT(id.Internal < IM_MANAGED_TEXTURE_MAX_COUNT);
         auto& managedTexture = managedTextures[id.Internal];
         IM_ASSERT(managedTexture.allocated == false);
         UINT descriptorSize = pd3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
@@ -101,12 +101,13 @@ struct ImGui_ImplDX12_Data
     }
 
     void FreeTexture(ImManagedTextureID id) {
-        IM_ASSERT(id.Internal < 16);
+        IM_ASSERT(id.Internal < IM_MANAGED_TEXTURE_MAX_COUNT);
         auto& managedTexture = managedTextures[id.Internal];
         if (managedTexture.allocated == true) {
             if (managedTexture.pTextureResource)
                 managedTexture.pTextureResource->Release();
             managedTexture.pTextureResource = nullptr;
+            managedTexture.allocated = false;
         }
 
     }
@@ -474,7 +475,7 @@ static void ImGui_ImplDX12_CreateFontsTexture()
     io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
 
     // Upload texture to graphics system
-    ImGui_ImplDX12_Texture& texture = bd->AllocateTexture({0});
+    ImGui_ImplDX12_Texture& texture = bd->AllocateTexture({ IM_MANAGED_TEXTURE_MAX_COUNT - 1 });
     ImGui_ImplDX12_CreateTexture(width, height, pixels, &texture.pTextureResource, texture.hCpuDescHandle);
 
 
@@ -734,7 +735,7 @@ void    ImGui_ImplDX12_InvalidateDeviceObjects()
     ImGuiIO& io = ImGui::GetIO();
     SafeRelease(bd->pRootSignature);
     SafeRelease(bd->pPipelineState);
-    bd->FreeTexture({ 0 });
+    bd->FreeTexture({ IM_MANAGED_TEXTURE_MAX_COUNT - 1 });
     io.Fonts->SetTexID(0); // We copied bd->pFontTextureView to io.Fonts->TexID so let's clear that as well.
 
     for (UINT i = 0; i < bd->numFramesInFlight; i++)
@@ -745,7 +746,7 @@ void    ImGui_ImplDX12_InvalidateDeviceObjects()
     }
 }
 
-bool ImGui_ImplDX12_Init(ID3D12Device* device, int num_frames_in_flight, DXGI_FORMAT rtv_format, ID3D12DescriptorHeap* cbv_srv_heap, unsigned int srv_heap_size)
+bool ImGui_ImplDX12_Init(ID3D12Device* device, int num_frames_in_flight, DXGI_FORMAT rtv_format, ID3D12DescriptorHeap* cbv_srv_heap)
 {
     ImGuiIO& io = ImGui::GetIO();
     IM_ASSERT(io.BackendRendererUserData == nullptr && "Already initialized a renderer backend!");
@@ -761,7 +762,6 @@ bool ImGui_ImplDX12_Init(ID3D12Device* device, int num_frames_in_flight, DXGI_FO
     bd->pFrameResources = new ImGui_ImplDX12_RenderBuffers[num_frames_in_flight];
     bd->numFramesInFlight = num_frames_in_flight;
     bd->pd3dSrvDescHeap = cbv_srv_heap;
-    bd->srvDescHeapSize = srv_heap_size;
     bd->frameIndex = UINT_MAX;
 
     // Create buffers with a default size (they will later be grown as needed)
@@ -790,6 +790,10 @@ void ImGui_ImplDX12_Shutdown()
     io.BackendRendererUserData = nullptr;
     io.BackendFlags &= ~ImGuiBackendFlags_RendererHasVtxOffset;
     IM_DELETE(bd);
+
+    for (int i = 0; i < IM_MANAGED_TEXTURE_MAX_COUNT; i++) {
+        IM_ASSERT(!bd->managedTextures[i].allocated);
+    }
 }
 
 void ImGui_ImplDX12_NewFrame()
