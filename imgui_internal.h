@@ -2070,6 +2070,8 @@ struct ImGuiContext
     int                     WantCaptureKeyboardNextFrame;       // "
     int                     WantTextInputNextFrame;
     ImVector<char>          TempBuffer;                         // Temporary text buffer
+    ImVector<ImTextureRequest> TextureRequests;
+    bool                       ManagedTextures[IM_MANAGED_TEXTURE_MAX_COUNT];
 
     ImGuiContext(ImFontAtlas* shared_font_atlas)
     {
@@ -2814,6 +2816,9 @@ namespace ImGui
     IMGUI_API ImDrawList*   GetBackgroundDrawList(ImGuiViewport* viewport);                     // get background draw list for the given viewport. this draw list will be the first rendering one. Useful to quickly draw shapes/text behind dear imgui contents.
     IMGUI_API ImDrawList*   GetForegroundDrawList(ImGuiViewport* viewport);                     // get foreground draw list for the given viewport. this draw list will be the last rendered one. Useful to quickly draw shapes/text over dear imgui contents.
     IMGUI_API void          AddDrawListToDrawDataEx(ImDrawData* draw_data, ImVector<ImDrawList*>* out_list, ImDrawList* draw_list);
+
+    IMGUI_API ImManagedTextureID CreateTexture(int width, int height, unsigned char* pixels);
+    IMGUI_API void               DestroyTexture(ImManagedTextureID id);
 
     // Init
     IMGUI_API void          Initialize();

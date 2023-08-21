@@ -109,7 +109,6 @@ struct ImGui_ImplDX12_Data
             managedTexture.pTextureResource = nullptr;
             managedTexture.allocated = false;
         }
-
     }
 };
 
@@ -345,20 +344,20 @@ void ImGui_ImplDX12_RenderDrawData(ImDrawData* draw_data, ID3D12GraphicsCommandL
     ImGui_ImplDX12_Data* bd = ImGui_ImplDX12_GetBackendData();
 
     for (const auto& req : draw_data->TextureRqs) {
-        switch (req->Type) {
+        switch (req.Type) {
         case ImTextureRequestType_Create: {
-                auto& texture = bd->AllocateTexture(req->TexID);
-                ImGui_ImplDX12_CreateTexture(req->create.width, req->create.height, req->create.pixels, &texture.pTextureResource, texture.hCpuDescHandle);
+                auto& texture = bd->AllocateTexture(req.TexID);
+                ImGui_ImplDX12_CreateTexture(req.create.width, req.create.height, req.create.pixels, &texture.pTextureResource, texture.hCpuDescHandle);
                 break;
             }
         case ImTextureRequestType_Update: {
                 // TODO: Implement ImGui_ImplDX12_UpdateTexture(...)
-                //auto& texture = bd->GetManagedTexture(req->TexID);
-                //ImGui_ImplDX12_UpdateTexture(req->update.x, req->update.y, req->update.width, req->update.height, req->create.pixels, texture.pTextureResource);
+                //auto& texture = bd->GetManagedTexture(req.TexID);
+                //ImGui_ImplDX12_UpdateTexture(req.update.x, req.update.y, req.update.width, req.update.height, req.create.pixels, texture.pTextureResource);
                 break;
             }
         case ImTextureRequestType_Destroy: {
-                bd->FreeTexture(req->TexID);
+                bd->FreeTexture(req.TexID);
                 break;
             }
         }

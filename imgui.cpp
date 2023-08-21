@@ -3609,6 +3609,8 @@ void ImGui::Initialize()
 #ifdef IMGUI_HAS_DOCK
 #endif
 
+    memset(g.ManagedTextures, 0, sizeof(g.ManagedTextures));
+
     g.Initialized = true;
 }
 
@@ -5137,7 +5139,43 @@ void ImGui::Render()
         g.IO.MetricsRenderIndices += draw_data->TotalIdxCount;
     }
 
+    g.Viewports[0]->DrawDataP.TextureRqs.swap(g.TextureRequests);
+    g.TextureRequests.clear();
+
     CallContextHooks(&g, ImGuiContextHookType_RenderPost);
+}
+
+ImManagedTextureID ImGui::CreateTexture(int width, int height, unsigned char* pixels)
+{
+    ImGuiContext& g = *GImGui;
+    ImManagedTextureID id{ UINT(-1) };
+    for (int i = 0; i < IM_MANAGED_TEXTURE_MAX_COUNT; i++) {
+        if (!g.ManagedTextures[i]) {
+            g.ManagedTextures[i] = true;
+            id.Internal = i;
+        }
+    }
+    IM_ASSERT(id.Internal != UINT(-1));
+
+    ImTextureRequest req;
+    req.Type = ImTextureRequestType_Create;
+    req.TexID = id;
+    req.create.width = width;
+    req.create.height = height;
+    req.create.pixels = pixels;
+    g.TextureRequests.push_back(req);
+
+    return id;
+}
+
+void ImGui::DestroyTexture(ImManagedTextureID id) {
+    ImGuiContext& g = *GImGui;
+    IM_ASSERT(g.ManagedTextures[id.Internal]);
+    ImTextureRequest req;
+    req.Type = ImTextureRequestType_Destroy;
+    req.TexID = id;
+    g.TextureRequests.push_back(req);
+    g.ManagedTextures[id.Internal] = false;
 }
 
 // Calculate text size. Text can be multi-line. Optionally ignore text after a ## marker.
