@@ -8,6 +8,9 @@
 #include <d3d11.h>
 #include <tchar.h>
 
+#include <chrono>
+#include <iostream>
+
 // Data
 static ID3D11Device*            g_pd3dDevice = nullptr;
 static ID3D11DeviceContext*     g_pd3dDeviceContext = nullptr;
@@ -79,10 +82,16 @@ int main(int, char**)
     bool show_another_window = false;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
+    g_pSwapChain->SetFullscreenState(TRUE, nullptr);
+
     // Main loop
     bool done = false;
+    long long frame = -1;
+
+    std::cout << "Dear Imgui starts\n";
     while (!done)
     {
+        frame += 1;
         // Poll and handle messages (inputs, window resize, etc.)
         // See the WndProc() function below for our to dispatch events to the Win32 backend.
         MSG msg;
@@ -156,6 +165,52 @@ int main(int, char**)
 
         g_pSwapChain->Present(1, 0); // Present with vsync
         //g_pSwapChain->Present(0, 0); // Present without vsync
+
+
+        if (frame == 240) {
+            using clock = std::chrono::high_resolution_clock;
+            using timespan = decltype(std::chrono::high_resolution_clock::now());
+            auto to_us = [](timespan start, timespan end) {
+                return std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+            };
+            std::cout << "Start the experiment\n";
+            long long result[16][20];
+            memset(result, 0, sizeof(result));
+            for (int n = 0; n < 10; n++) {
+                for (int k = 1; k <= 16; k++) {
+                    IDXGIDevice1* dxgiDevice;
+                    HRESULT res = g_pd3dDevice->QueryInterface(__uuidof(IDXGIDevice1), (void**)&dxgiDevice);
+                    IM_ASSERT(SUCCEEDED(res));
+
+                    res = dxgiDevice->SetMaximumFrameLatency(k);
+                    IM_ASSERT(SUCCEEDED(res));
+                    dxgiDevice->Release();
+                    for (int i = 0; i < 16; i++) {
+                        g_pSwapChain->Present(1, 0); // flush
+                    }
+                    std::cout << "Set MAX_FRAME_LATENCY=" << k << "\n";
+
+                    ::Sleep(1000);
+                    auto prev = clock::now();
+                    for (int i = 0; i < 20; i++) {
+                        g_pSwapChain->Present(1, 0);
+                        auto next = clock::now();
+                        std::cout << "Present[" << i << "] took " << to_us(prev, next) << "us\n";
+                        std::cout << to_us(prev, next) << ",";
+                        result[k - 1][i] += to_us(prev, next);
+                        prev = next;
+                    }
+                    std::cout << "\n";
+                }
+            }
+            for (int k = 1; k <= 16; k++) {
+                std::cout << k << ",";
+                for (int i = 0; i < 20; i++) {
+                    std::cout << result[k - 1][i] / 10 << ",";
+                }
+                std::cout << "\n";
+            }
+        }
     }
 
     // Cleanup
@@ -200,6 +255,14 @@ bool CreateDeviceD3D(HWND hWnd)
         res = D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_WARP, nullptr, createDeviceFlags, featureLevelArray, 2, D3D11_SDK_VERSION, &sd, &g_pSwapChain, &g_pd3dDevice, &featureLevel, &g_pd3dDeviceContext);
     if (res != S_OK)
         return false;
+
+    IDXGIDevice1* dxgiDevice;
+    res = g_pd3dDevice->QueryInterface(__uuidof(IDXGIDevice1), (void**)&dxgiDevice);
+    IM_ASSERT(SUCCEEDED(res));
+
+    res = dxgiDevice->SetMaximumFrameLatency(1);
+    IM_ASSERT(SUCCEEDED(res));
+    dxgiDevice->Release();
 
     CreateRenderTarget();
     return true;
