@@ -63,11 +63,20 @@ LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 // Main code
 int main(int, char**)
 {
+    ImGui_ImplWin32_EnableDpiAwareness();
     // Create application window
     //ImGui_ImplWin32_EnableDpiAwareness();
     WNDCLASSEXW wc = { sizeof(wc), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(nullptr), nullptr, nullptr, nullptr, nullptr, L"ImGui Example", nullptr };
     ::RegisterClassExW(&wc);
-    HWND hwnd = ::CreateWindowW(wc.lpszClassName, L"Dear ImGui DirectX12 Example", WS_OVERLAPPEDWINDOW, 100, 100, 1280, 800, nullptr, nullptr, wc.hInstance, nullptr);
+
+    float dpiScale = 1.f;
+    {
+
+        POINT pt = { 100, 100 };
+        HMONITOR mon = ::MonitorFromPoint(pt, MONITOR_DEFAULTTOPRIMARY);
+        dpiScale = ImGui_ImplWin32_GetDpiScaleForMonitor(mon);
+    }
+    HWND hwnd = ::CreateWindowW(wc.lpszClassName, L"Dear ImGui DirectX12 Example", WS_OVERLAPPEDWINDOW, 100, 100, (int) 1280.f * dpiScale, (int)800.f * dpiScale, nullptr, nullptr, wc.hInstance, nullptr);
 
     // Initialize Direct3D
     if (!CreateDeviceD3D(hwnd))
@@ -103,6 +112,7 @@ int main(int, char**)
         style.WindowRounding = 0.0f;
         style.Colors[ImGuiCol_WindowBg].w = 1.0f;
     }
+    style.ScaleAllSizes(dpiScale);
 
     // Setup Platform/Renderer backends
     ImGui_ImplWin32_Init(hwnd);
@@ -120,7 +130,7 @@ int main(int, char**)
     // - Read 'docs/FONTS.md' for more instructions and details.
     // - Remember that in C/C++ if you want to include a backslash \ in a string literal you need to write a double backslash \\ !
     //io.Fonts->AddFontDefault();
-    //io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\segoeui.ttf", 18.0f);
+    io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\segoeui.ttf", 13.0f * dpiScale);
     //io.Fonts->AddFontFromFileTTF("../../misc/fonts/DroidSans.ttf", 16.0f);
     //io.Fonts->AddFontFromFileTTF("../../misc/fonts/Roboto-Medium.ttf", 16.0f);
     //io.Fonts->AddFontFromFileTTF("../../misc/fonts/Cousine-Regular.ttf", 15.0f);
@@ -482,6 +492,23 @@ LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
         break;
     case WM_DESTROY:
         ::PostQuitMessage(0);
+        return 0;
+    case WM_DPICHANGED:
+        {
+            RECT* rect = (RECT*)lParam;
+            IM_ASSERT(LOWORD(wParam) == HIWORD(wParam));
+            ::SetWindowPos(hWnd, NULL, rect->left, rect->top, rect->right - rect->left, rect->bottom - rect->top, SWP_NOZORDER);
+            float dpiScale = (float)LOWORD(wParam) / (float)USER_DEFAULT_SCREEN_DPI;
+            ImGui_ImplDX12_InvalidateDeviceObjects();
+            ImGuiIO& io = ImGui::GetIO();
+            io.Fonts->Clear();
+            ImGuiStyle& style = ImGui::GetStyle();
+            style = ImGuiStyle(); // IMPORTANT: ScaleAllSizes will change the original size, so we should reset all style config
+            ImGui::StyleColorsDark();
+            style.ScaleAllSizes(dpiScale);
+            io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\segoeui.ttf", 13.0f * dpiScale);
+            ImGui_ImplDX12_CreateDeviceObjects();
+        }
         return 0;
     }
     return ::DefWindowProcW(hWnd, msg, wParam, lParam);

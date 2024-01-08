@@ -1279,6 +1279,14 @@ void ImGuiStyle::ScaleAllSizes(float scale_factor)
     DisplayWindowPadding = ImTrunc(DisplayWindowPadding * scale_factor);
     DisplaySafeAreaPadding = ImTrunc(DisplaySafeAreaPadding * scale_factor);
     MouseCursorScale = ImTrunc(MouseCursorScale * scale_factor);
+
+    WindowBorderSize = ImTrunc(WindowBorderSize * scale_factor);
+    ChildBorderSize = ImTrunc(ChildBorderSize * scale_factor);
+    PopupBorderSize = ImTrunc(PopupBorderSize * scale_factor);
+    FrameBorderSize = ImTrunc(FrameBorderSize * scale_factor);
+    TabBorderSize = ImTrunc(TabBorderSize * scale_factor);
+    TabBarBorderSize = ImTrunc(TabBarBorderSize * scale_factor);
+    SeparatorTextBorderSize = ImTrunc(SeparatorTextBorderSize * scale_factor);
 }
 
 ImGuiIO::ImGuiIO()
