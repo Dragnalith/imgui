@@ -164,6 +164,141 @@ int main(int, char**)
         ImGui_ImplWin32_NewFrame();
         ImGui::NewFrame();
 
+        // 0
+        static bool open = true;
+        ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.f, 0.f, 0.f, 1.f));
+        ImGui::SetNextWindowSize(ImVec2(600, 600), ImGuiCond_Always);
+        ImVec2 cursor = ImGui::GetCursorPos();
+        ImVec2 wsize = ImGui::GetWindowSize();
+        ImVec2 avai = ImGui::GetContentRegionAvail();
+        ImVec2 max = ImGui::GetContentRegionMax();
+        if (ImGui::Begin("Marc's Window!", &open)) {
+            if (true) {
+                cursor = ImGui::GetCursorPos();
+                wsize = ImGui::GetWindowSize();
+                avai = ImGui::GetContentRegionAvail();
+                max = ImGui::GetContentRegionMax();
+                ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(1.f, 0.5f, 0.f, 1.f));
+                ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(1.f, 0.4f, 0.f, 1.f));
+                //ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.f);
+                ImGui::SetCursorPos(ImVec2(0, 0));
+                cursor = ImGui::GetCursorPos();
+                wsize = ImGui::GetWindowSize();
+                avai = ImGui::GetContentRegionAvail();
+                max = ImGui::GetContentRegionMax();
+                {
+                    ImGui::BeginChild("Marc's ChildWindow", ImVec2(0, 0), /*ImGuiChildFlags_FrameStyle |/**/ ImGuiChildFlags_AutoResizeX | ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_AlwaysUseWindowPadding);
+                    ImVec2 size = ImGui::GetWindowSize();
+                    //ImGui::SetWindowSize(ImVec2(150, 50));
+                    //ImGui::BeginChild("Marc's ChildWindow");
+                    cursor = ImGui::GetCursorPos();
+                    wsize = ImGui::GetWindowSize();
+                    avai = ImGui::GetContentRegionAvail();
+                    max = ImGui::GetContentRegionMax();
+                    ImGui::CollapsingHeader("Test");
+                    cursor = ImGui::GetCursorPos();
+                    ImGui::Text("Hello World! Marc!!!!");
+                    cursor = ImGui::GetCursorPos();
+                    wsize = ImGui::GetWindowSize();
+                    avai = ImGui::GetContentRegionAvail();
+                    max = ImGui::GetContentRegionMax();
+                    ImGui::SameLine();
+                    cursor = ImGui::GetCursorPos();
+                    wsize = ImGui::GetWindowSize();
+                    avai = ImGui::GetContentRegionAvail();
+                    max = ImGui::GetContentRegionMax();
+                    ImGui::Button("Click Me!");
+                    cursor = ImGui::GetCursorPos();
+                    wsize = ImGui::GetWindowSize();
+                    avai = ImGui::GetContentRegionAvail();
+                    max = ImGui::GetContentRegionMax();                    ImGui::Button("Hey!");
+                    cursor = ImGui::GetCursorPos();
+                    wsize = ImGui::GetWindowSize();
+                    avai = ImGui::GetContentRegionAvail();
+                    max = ImGui::GetContentRegionMax();                    ImGui::Button("Hey!");
+                    ImGui::Button("Hey!");
+                    ImGui::Button("Hey!");
+                    ImGui::EndChild();
+                }
+                cursor = ImGui::GetCursorPos();
+                wsize = ImGui::GetWindowSize();
+                avai = ImGui::GetContentRegionAvail();
+                max = ImGui::GetContentRegionMax();
+                ImGui::SameLine();
+                cursor = ImGui::GetCursorPos();
+                wsize = ImGui::GetWindowSize();
+                avai = ImGui::GetContentRegionAvail();
+                max = ImGui::GetContentRegionMax();
+                ImGui::Button("Coucou");
+                cursor = ImGui::GetCursorPos();
+                wsize = ImGui::GetWindowSize();
+                avai = ImGui::GetContentRegionAvail();
+                max = ImGui::GetContentRegionMax();                ImGui::Button("Coucou");
+                cursor = ImGui::GetCursorPos();
+                ImGui::Button("Coucou");
+                cursor = ImGui::GetCursorPos();
+                ImGui::Button("Coucou");
+                cursor = ImGui::GetCursorPos();
+                ImGui::Button("Coucou");
+
+                ImGui::Button("Coucou");
+                ImGui::Button("Coucou");
+                wsize = ImGui::GetWindowSize();
+                avai = ImGui::GetContentRegionAvail();
+                max = ImGui::GetContentRegionMax();
+                //ImGui::PopStyleVar();
+                ImGui::PopStyleColor();
+                ImGui::PopStyleColor();
+            }
+        }
+        ImGui::End();
+        ImGui::PopStyleColor();
+
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+        ImGui::SetNextWindowSize(ImVec2(500, 300));
+        ImGui::Begin("Credentials", nullptr, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoDocking);
+        float footerHeight = ImGui::GetFontSize() + ImGui::GetStyle().FramePadding.y * 2.f + 1.f + ImGui::GetStyle().ItemSpacing.y * 2.f;
+        ImGui::BeginChild("Content", ImVec2(0, -footerHeight));
+        if (ImGui::BeginTable("Table", 2))
+        {
+            ImGui::TableSetupColumn("login", ImGuiTableColumnFlags_WidthFixed, 150.0f); // Default to 100.0f
+            ImGui::TableSetupColumn("password", ImGuiTableColumnFlags_WidthStretch); // Default to 200.0f
+            ImGui::TableNextRow();
+            ImGui::TableSetColumnIndex(0);
+            ImGui::Text("Login: ");
+            ImGui::TableSetColumnIndex(1);
+            ImGui::PushItemWidth(-FLT_MIN); // Right-aligned
+            char buf1[1024] = {0};
+            ImGui::InputText("##login", buf1, 1024);
+            ImGui::TableNextRow();
+            ImGui::TableSetColumnIndex(0);
+            ImGui::Text("Password: ");
+            ImGui::TableSetColumnIndex(1);
+            ImGui::PushItemWidth(-FLT_MIN); // Right-aligned
+            char buf2[1024] = { 0 };
+            ImGui::InputText("##pass", buf2, 1024, ImGuiInputTextFlags_Password);
+            ImGui::EndTable();
+        }
+        ImGui::EndChild();
+        ImGui::Separator();
+        ImGui::BeginChild("Footer");
+        ImGui::Text("Footer");
+        ImGui::EndChild();
+        ImGui::End();
+        ImGui::PopStyleVar();
+
+        ImGui::Begin("Foo2");
+        ImGui::BeginChild("Marc II", ImVec2(100, 100), ImGuiChildFlags_Border);
+        //ImGui::BeginChild("Marc's ChildWindow");
+        ImGui::EndChild();
+        ImGui::BeginChild("Marc III", ImVec2(100, 100), ImGuiChildFlags_Border);
+        //ImGui::BeginChild("Marc's ChildWindow");
+        ImGui::EndChild();
+        ImGui::BeginChild("Marc IV", ImVec2(100, 100), ImGuiChildFlags_Border);
+        //ImGui::BeginChild("Marc's ChildWindow");
+        ImGui::EndChild();
+        ImGui::End();
+
         // 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
         if (show_demo_window)
             ImGui::ShowDemoWindow(&show_demo_window);
