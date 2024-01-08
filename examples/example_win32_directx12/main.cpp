@@ -257,35 +257,19 @@ int main(int, char**)
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
         ImGui::SetNextWindowSize(ImVec2(500, 300));
         ImGui::Begin("Credentials", nullptr, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoDocking);
+        ImGui::PopStyleVar();
         float footerHeight = ImGui::GetFontSize() + ImGui::GetStyle().FramePadding.y * 2.f + 1.f + ImGui::GetStyle().ItemSpacing.y * 2.f;
-        ImGui::BeginChild("Content", ImVec2(0, -footerHeight));
-        if (ImGui::BeginTable("Table", 2))
-        {
-            ImGui::TableSetupColumn("login", ImGuiTableColumnFlags_WidthFixed, 150.0f); // Default to 100.0f
-            ImGui::TableSetupColumn("password", ImGuiTableColumnFlags_WidthStretch); // Default to 200.0f
-            ImGui::TableNextRow();
-            ImGui::TableSetColumnIndex(0);
-            ImGui::Text("Login: ");
-            ImGui::TableSetColumnIndex(1);
-            ImGui::PushItemWidth(-FLT_MIN); // Right-aligned
-            char buf1[1024] = {0};
-            ImGui::InputText("##login", buf1, 1024);
-            ImGui::TableNextRow();
-            ImGui::TableSetColumnIndex(0);
-            ImGui::Text("Password: ");
-            ImGui::TableSetColumnIndex(1);
-            ImGui::PushItemWidth(-FLT_MIN); // Right-aligned
-            char buf2[1024] = { 0 };
-            ImGui::InputText("##pass", buf2, 1024, ImGuiInputTextFlags_Password);
-            ImGui::EndTable();
-        }
+        ImGui::BeginChild("Content", ImVec2(0, -footerHeight), ImGuiChildFlags_AlwaysUseWindowPadding);
+        char buf1[1024] = { 0 };
+        char buf2[1024] = { 0 };
+        ImGui::Text("Login: "); ImGui::SameLine(100); ImGui::SetNextItemWidth(-FLT_MIN);  ImGui::InputText("##login", buf1, 1024);
+        ImGui::Text("Password:"); ImGui::SameLine(100); ImGui::SetNextItemWidth(-FLT_MIN); ImGui::InputText("##pass", buf2, 1024, ImGuiInputTextFlags_Password);
         ImGui::EndChild();
         ImGui::Separator();
         ImGui::BeginChild("Footer");
         ImGui::Text("Footer");
         ImGui::EndChild();
         ImGui::End();
-        ImGui::PopStyleVar();
 
         ImGui::Begin("Foo2");
         ImGui::BeginChild("Marc II", ImVec2(100, 100), ImGuiChildFlags_Border);
